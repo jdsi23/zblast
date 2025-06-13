@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>2 Player PvE Zombie Shooter - Fullscreen, Custom Difficulty & Ready-Up</title>
+<style>
+  @font-face {
+    font-family: 'PressStart2P';
+    src: url('https://fonts.gstatic.com/s/pressstart2p/v12/8QIHdir7rE5N6gr8Q2qxnfNtlH1aTg.woff2') format('woff2');
+  }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: #222;
+    font-family: 'PressStart2P', monospace, monospace;
+    user-select: none;
+    color: #0f0;
+  }
+  #gameCanvas {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #111;
+    border: none;
+  }
+  #upgradeInfo {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.7);
+    padding: 10px 15px;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.5;
+    max-width: 220px;
+    z-index: 12;
+  }
+  #powerupInfo {
+    position: fixed;
+    top: 150px;
+    left: 10px;
+    font-style: italic;
+    z-index: 12;
+  }
+  #info {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.7);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    max-width: 90vw;
+    text-align: center;
+    z-index: 10;
+  }
+  #upgradePrompt {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(20,20,20,0.9);
+    border: 2px solid #0f0;
+    padding: 20px 30px;
+    border-radius: 12px;
+    font-size: 18px;
+    z-index: 20;
+    display: none;
+    max-width: 90vw;
+    color: #0f0;
+    text-align: center;
+  }
+  #progressBarContainer {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 300px;
+    height: 20px;
+    background: #444;
+    border: 2px solid #0f0;
+    border-radius: 10px;
+    overflow: hidden;
+    z-index: 15;
+  }
+  #progressBarFill {
+    height: 100%;
+    background: #0f0;
+    width: 0%;
+    transition: width 0.2s ease;
+  }
+  #flashOverlay {
+    position: fixed;
+    top:0; left:0;
+    width: 100vw; height: 100vh;
+    pointer-events: none;
+    z-index: 30;
+    display: none;
+  }
+  /* Color selection screen */
+  #colorSelectionScreen {
+    position: fixed;
+    top:0; left:0; width:100vw; height:100vh;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 40;
+    color: #0f0;
+    text-align: center;
+    user-select: none;
+    overflow-y: auto;
+    padding-bottom: 40px;
+  }
+  #colorOptions {
+    display: flex;
+    gap: 40px;
+    margin: 20px 0;
+  }
+  .colorBox {
+    width: 80px;
+    height: 80px;
+    border: 3px solid #0f0;
+    cursor: pointer;
+    position: relative;
+    transition: outline 0.3s ease;
+  }
+  /* Player selection outlines */
+  .colorBox.p1-selected {
+    outline: 5px solid #00f;
+  }
+  .colorBox.p2-selected {
+    outline: 5px solid #0ff;
+  }
+  /* Player ready glow */
+  .colorBox.p1-ready {
+    box-shadow: 0 0 15px 3px #00f;
+  }
+  .colorBox.p2-ready {
+    box-shadow: 0 0 15px 3px #0ff;
+  }
+  #readyInstructions {
+    margin-top: 15px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  #countdown {
+    font-size: 48px;
+    margin-top: 20px;
+    font-weight: bold;
+    color: #0f0;
+    text-shadow:
+      0 0 10px #0f0,
+      0 0 20px #0f0,
+      0 0 30px #0f0;
+    font-family: 'PressStart2P', monospace;
+  }
+  #modeToggle, #blitzToggle {
+    margin-top: 20px;
+    cursor: pointer;
+    border: 2px solid #0f0;
+    padding: 10px 20px;
+    border-radius: 10px;
+    user-select: none;
+    width: 320px;
+  }
+  #difficultySelector {
+    margin-top: 30px;
+    border: 2px solid #0f0;
+    padding: 20px;
+    border-radius: 12px;
+    width: 340px;
+    text-align: left;
+  }
+  #difficultySelector label {
+    font-size: 12px;
+    display: block;
+    margin-top: 12px;
+    user-select: none;
+  }
+  #difficultySelector select {
+    margin-top: 5px;
+    width: 100%;
+    font-family: 'PressStart2P', monospace;
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+  .sliderContainer {
+    margin-top: 12px;
+  }
+  .sliderContainer label {
+    font-size: 11px;
+  }
+  .sliderContainer input[type=range] {
+    width: 100%;
+  }
+  #retryButton {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #000;
+    border: 3px solid #0f0;
+    color: #0f0;
+    font-family: 'PressStart2P', monospace;
+    font-size: 18px;
+    padding: 12px 25px;
+    cursor: pointer;
+    border-radius: 10px;
+    z-index: 100;
+    display: none;
+  }
+  #highScoreButton {
+    position: fixed;
+    top: 40px;
+    right: 20px;
+    z-index: 20;
+    background: rgba(0,0,0,0.7);
+    border: 2px solid #0f0;
+    color: #0f0;
+    padding: 10px 15px;
+    font-family: 'PressStart2P', monospace;
+    cursor: pointer;
+    border-radius: 10px;
+    display: none;
+  }
+  #highScoreModal {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: #000;
+    border: 3px solid #0f0;
+    padding: 30px;
+    z-index: 50;
+    display: none;
+    max-width: 400px;
+    width: 90vw;
+    color: #0f0;
+    font-family: 'PressStart2P', monospace;
+  }
+  #highScoreModal h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+  }
+  #closeHighScore {
+    cursor: pointer;
+    background: #0f0;
+    color: #000;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-weight: bold;
+    margin-top: 20px;
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+
+<!-- Added tabindex="0" here -->
+<div id="colorSelectionScreen" tabindex="0">
+  <div>Select Your Colors & Ready Up</div>
+  <div id="colorOptions">
+    <div class="colorBox" style="background:#00f;" data-color="#00f"></div>
+    <div class="colorBox" style="background:#0ff;" data-color="#0ff"></div>
+    <div class="colorBox" style="background:#f00;" data-color="#f00"></div>
+    <div class="colorBox" style="background:#ff0;" data-color="#ff0"></div>
+  </div>
+  <div id="readyInstructions">
+    <div><strong>Player 1:</strong> Use A/D to select color, SPACE to Ready/Unready</div>
+    <div><strong>Player 2:</strong> Use Left/Right Arrows to select color, ENTER to Ready/Unready</div>
+  </div>
+  <div id="modeToggle" title="Press M to toggle Player Mode">Mode: 2 Players (Press M to toggle)</div>
+  <div id="blitzToggle" title="Press B to toggle Blitz Mode">Mode: Normal (Press B to toggle)</div>
+
+  <div id="difficultySelector">
+    <label for="difficultySelect">Select Difficulty:</label>
+    <select id="difficultySelect" title="Select difficulty">
+      <option value="easy">Easy</option>
+      <option value="normal" selected>Normal</option>
+      <option value="hard">Hard</option>
+      <option value="custom">Custom</option>
+    </select>
+
+    <div id="customSliders" style="display:none; margin-top:15px;">
+      <div class="sliderContainer">
+        <label for="powerupDropSlider">Powerup Drop Chance</label>
+        <input type="range" id="powerupDropSlider" min="0" max="2" step="1" value="1" title="0=Normal,1=High,2=Very High">
+        <div style="font-size:10px;">0=Normal, 1=High, 2=Very High</div>
+      </div>
+      <div class="sliderContainer">
+        <label for="enemySpeedSlider">Enemy Movement Multiplier (0.5x - 5x)</label>
+        <input type="range" id="enemySpeedSlider" min="0.5" max="5" step="0.1" value="1" title="Enemy speed multiplier">
+      </div>
+      <div class="sliderContainer">
+        <label for="bulletDamageSlider">Bullet Damage (0.5x - 5x)</label>
+        <input type="range" id="bulletDamageSlider" min="0.5" max="5" step="0.1" value="1" title="Bullet damage multiplier">
+      </div>
+      <div class="sliderContainer">
+        <label for="bulletSpeedSlider">Bullet Speed (0.5x - 5x)</label>
+        <input type="range" id="bulletSpeedSlider" min="0.5" max="5" step="0.1" value="1" title="Bullet speed multiplier">
+      </div>
+      <div class="sliderContainer">
+        <label for="bulletSizeSlider">Bullet Size (0.5x - 5x)</label>
+        <input type="range" id="bulletSizeSlider" min="0.5" max="5" step="0.1" value="1" title="Bullet size multiplier">
+      </div>
+      <div class="sliderContainer">
+        <label for="playerSpeedSlider">Player Speed (0.5x - 5x)</label>
+        <input type="range" id="playerSpeedSlider" min="0.5" max="5" step="0.1" value="1" title="Player speed multiplier">
+      </div>
+      <div class="sliderContainer">
+        <label for="playerHealthSlider">Player Health (0.5x - 5x)</label>
+        <input type="range" id="playerHealthSlider" min="0.5" max="5" step="0.1" value="1" title="Player health multiplier">
+      </div>
+      <div class="sliderContainer">
+        <label for="bossSpawnSlider">Boss Spawn Rate</label>
+        <input type="range" id="bossSpawnSlider" min="0" max="2" step="1" value="1" title="0=Normal,1=High,2=Very High">
+        <div style="font-size:10px;">0=Normal, 1=High, 2=Very High</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="countdown"></div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="upgradeInfo" style="display:none;"></div>
+<div id="powerupInfo" style="display:none;"></div>
+<div id="info" style="display:none;">
+  <div>
+    Player 1: Move (W A S D), Shoot (SPACE) | Player 2: Move (Arrow Keys), Shoot (ENTER)
+  </div>
+</div>
+
+<button id="highScoreButton">High Scores</button>
+<button id="retryButton">Retry</button>
+
+<div id="upgradePrompt">
+  <p><strong>Upgrade earned! Press the key for the upgrade you want:</strong></p>
+  <p>1: Bullet Damage</p>
+  <p>2: Bullet Speed</p>
+  <p>3: Health Boost</p>
+  <p>4: Speed Boost</p>
+</div>
+
+<div id="progressBarContainer" style="display:none;" title="Progress to next upgrade">
+  <div id="progressBarFill"></div>
+</div>
+
+<div id="flashOverlay"></div>
+
+<div id="highScoreModal">
+  <h2>High Scores</h2>
+  <ol id="highScoreList"></ol>
+  <div id="closeHighScore">Close</div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const upgradeInfo = document.getElementById('upgradeInfo');
+  const powerupInfo = document.getElementById('powerupInfo');
+  const upgradePrompt = document.getElementById('upgradePrompt');
+  const progressBarContainer = document.getElementById('progressBarContainer');
+  const progressBarFill = document.getElementById('progressBarFill');
+  const flashOverlay = document.getElementById('flashOverlay');
+
+  const colorSelectionScreen = document.getElementById('colorSelectionScreen');
+  const colorBoxes = [...document.querySelectorAll('.colorBox')];
+  const countdownElem = document.getElementById('countdown');
+  const modeToggle = document.getElementById('modeToggle');
+  const blitzToggle = document.getElementById('blitzToggle');
+  const highScoreButton = document.getElementById('highScoreButton');
+  const retryButton = document.getElementById('retryButton');
+  const highScoreModal = document.getElementById('highScoreModal');
+  const highScoreList = document.getElementById('highScoreList');
+  const closeHighScore = document.getElementById('closeHighScore');
+  const difficultySelect = document.getElementById('difficultySelect');
+  const customSliders = document.getElementById('customSliders');
+
+  // Custom sliders
+  const powerupDropSlider = document.getElementById('powerupDropSlider');
+  const enemySpeedSlider = document.getElementById('enemySpeedSlider');
+  const bulletDamageSlider = document.getElementById('bulletDamageSlider');
+  const bulletSpeedSlider = document.getElementById('bulletSpeedSlider');
+  const bulletSizeSlider = document.getElementById('bulletSizeSlider');
+  const playerSpeedSlider = document.getElementById('playerSpeedSlider');
+  const playerHealthSlider = document.getElementById('playerHealthSlider');
+  const bossSpawnSlider = document.getElementById('bossSpawnSlider');
+
+  // Player selection and mode state
+  let p1Index = 0;
+  let p2Index = colorBoxes.length - 1;
+  let p1Ready = false;
+  let p2Ready = false;
+  let countdownTimeout = null;
+  let countdownNum = 3;
+  let gameStarted = false;
+  let onePlayerMode = false;
+
+  // Difficulty settings (defaults for Normal)
+  let powerupDropChance = 0.8;
+  let enemyMovementMultiplierBase = 1;
+  let bulletDamageMultiplierBase = 1;
+  let bulletSpeedMultiplierBase = 1;
+  let bulletSizeMultiplierBase = 1;
+  let playerSpeedMultiplierBase = 1;
+  let playerHealthMultiplierBase = 1;
+  let bossSpawnRateIndex = 1; // Normal
+
+  // --- Spawn interval and Blitz mode ---
+  const SPAWN_INTERVAL = 2000;  // base spawn interval in ms
+  let spawnIntervalBase = SPAWN_INTERVAL;  // base value, never changes
+  let spawnIntervalCurrent = SPAWN_INTERVAL;  // current interval adjusted by kills and blitz
+  let blitzMode = false;  // Blitz mode off by default
+
+  // Resize canvas to full viewport size dynamically
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // Set focus on the color selection screen on load
+  window.addEventListener('load', () => {
+    colorSelectionScreen.focus();
+  });
+
+  // Keyboard input tracking
+  const keys = {};
+  window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (gameStarted) e.preventDefault();
+  });
+  window.addEventListener('keyup', e => {
+    keys[e.code] = false;
+    if (gameStarted) e.preventDefault();
+  });
+
+  // Update selection UI
+  function updateColorSelectionUI() {
+    colorBoxes.forEach((box, i) => {
+      box.classList.remove('p1-selected', 'p2-selected', 'p1-ready', 'p2-ready');
+      if (i === p1Index) box.classList.add('p1-selected');
+      if (i === p2Index && !onePlayerMode) box.classList.add('p2-selected');
+    });
+    if (p1Ready) colorBoxes[p1Index].classList.add('p1-ready');
+    if (p2Ready) colorBoxes[p2Index].classList.add('p2-ready');
+  }
+  updateColorSelectionUI();
+
+  function clearCountdown() {
+    countdownElem.textContent = '';
+    if (countdownTimeout) {
+      clearTimeout(countdownTimeout);
+      countdownTimeout = null;
+    }
+    countdownNum = 3;
+  }
+
+  function startCountdown() {
+    if (countdownTimeout) return;
+
+    function tick() {
+      if (!p1Ready || (!p2Ready && !onePlayerMode)) {
+        clearCountdown();
+        return;
+      }
+      if (countdownNum === 0) {
+        countdownElem.textContent = '';
+        startGame();
+        return;
+      }
+      countdownElem.textContent = countdownNum;
+      countdownNum--;
+      countdownTimeout = setTimeout(tick, 1000);
+    }
+    tick();
+  }
+
+  function startGame() {
+    gameStarted = true;
+    colorSelectionScreen.style.display = 'none';
+    canvas.style.display = 'block';
+    upgradeInfo.style.display = 'block';
+    powerupInfo.style.display = 'block';
+    document.getElementById('info').style.display = 'block';
+    progressBarContainer.style.display = 'block';
+    highScoreButton.style.display = 'block';
+    retryButton.style.display = 'none';
+    initGameWithColors(colorBoxes[p1Index].dataset.color, onePlayerMode ? null : colorBoxes[p2Index].dataset.color);
+    gameLoop();
+  }
+
+  // Retry button resets to start screen
+  retryButton.onclick = () => {
+    gameStarted = false;
+    gameOver = false;
+    upgradePrompt.style.display = 'none';
+    progressBarContainer.style.display = 'none';
+    upgradeInfo.style.display = 'none';
+    powerupInfo.style.display = 'none';
+    document.getElementById('info').style.display = 'none';
+    highScoreButton.style.display = 'none';
+    retryButton.style.display = 'none';
+    flashOverlay.style.display = 'none';
+
+    colorSelectionScreen.style.display = 'flex';
+    countdownElem.textContent = '';
+    countdownNum = 3;
+    p1Ready = false;
+    p2Ready = onePlayerMode;
+    updateColorSelectionUI();
+    colorSelectionScreen.focus();  // refocus so keys work again
+  };
+
+  // Blitz mode toggle helper function
+  function toggleBlitzMode() {
+    blitzMode = !blitzMode;
+    blitzToggle.textContent = blitzMode
+      ? 'Mode: Blitz (Press B to toggle)'
+      : 'Mode: Normal (Press B to toggle)';
+    updateUpgradeInfo();
+  }
+
+  // Blitz toggle button click event
+  blitzToggle.addEventListener('click', () => {
+    toggleBlitzMode();
+  });
+
+  // Handle upgrade key presses AND color selection keys in one listener
+  window.addEventListener('keydown', e => {
+    // Only handle keys if color selection screen is active (game NOT started)
+    if (!gameStarted) {
+      // Player 1: A/D to move, Space to ready/unready, M to toggle mode
+      if (['KeyA','KeyD','Space','KeyM'].includes(e.code)) {
+        if (e.code === 'KeyA' && !p1Ready) {
+          p1Index = (p1Index - 1 + colorBoxes.length) % colorBoxes.length;
+          updateColorSelectionUI();
+          clearCountdown();
+        }
+        if (e.code === 'KeyD' && !p1Ready) {
+          p1Index = (p1Index + 1) % colorBoxes.length;
+          updateColorSelectionUI();
+          clearCountdown();
+        }
+        if (e.code === 'Space') {
+          p1Ready = !p1Ready;
+          updateColorSelectionUI();
+          if (p1Ready && (p2Ready || onePlayerMode)) {
+            startCountdown();
+          } else {
+            clearCountdown();
+          }
+        }
+        if (e.code === 'KeyM') {
+          onePlayerMode = !onePlayerMode;
+          if (onePlayerMode) {
+            p2Ready = true; // auto ready for 1p
+            modeToggle.textContent = 'Mode: 1 Player (Press M to toggle)';
+          } else {
+            p2Ready = false;
+            modeToggle.textContent = 'Mode: 2 Players (Press M to toggle)';
+          }
+          updateColorSelectionUI();
+          clearCountdown();
+        }
+        e.preventDefault();
+        return;
+      }
+
+      // Player 2: Left/Right arrows to move, Enter to ready/unready (ignored in 1p mode)
+      if (!onePlayerMode && ['ArrowLeft','ArrowRight','Enter'].includes(e.code)) {
+        if (e.code === 'ArrowLeft' && !p2Ready) {
+          p2Index = (p2Index - 1 + colorBoxes.length) % colorBoxes.length;
+          updateColorSelectionUI();
+          clearCountdown();
+        }
+        if (e.code === 'ArrowRight' && !p2Ready) {
+          p2Index = (p2Index + 1) % colorBoxes.length;
+          updateColorSelectionUI();
+          clearCountdown();
+        }
+        if (e.code === 'Enter') {
+          p2Ready = !p2Ready;
+          updateColorSelectionUI();
+          if (p1Ready && p2Ready) {
+            startCountdown();
+          } else {
+            clearCountdown();
+          }
+        }
+        e.preventDefault();
+        return;
+      }
+
+      // Blitz mode toggle (B key)
+      if (e.code === 'KeyB') {
+        toggleBlitzMode();
+        e.preventDefault();
+        return;
+      }
+    } else if (gameStarted && !awaitingUpgrade) {
+      // Blitz mode toggle allowed during game running as well
+      if (e.code === 'KeyB') {
+        toggleBlitzMode();
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // Handle upgrade key presses if upgrade prompt active
+    if (awaitingUpgrade) {
+      if (['Digit1', 'Digit2', 'Digit3', 'Digit4'].includes(e.code)) {
+        applyUpgrade(e.code.slice(-1));
+        updateUpgradeInfo();
+        e.preventDefault();
+        return;
+      }
+    }
+  });
+
+  // Show/hide custom sliders based on difficulty select
+  difficultySelect.onchange = () => {
+    if (difficultySelect.value === 'custom') {
+      customSliders.style.display = 'block';
+    } else {
+      customSliders.style.display = 'none';
+      // Reset to difficulty presets:
+      setDifficultyPresets(difficultySelect.value);
+    }
+  };
+
+  // Difficulty presets for easy, normal, hard
+  function setDifficultyPresets(level) {
+    switch(level) {
+      case 'easy':
+        powerupDropChance = 0.5;
+        enemyMovementMultiplierBase = 0.75;
+        bulletDamageMultiplierBase = 0.75;
+        bulletSpeedMultiplierBase = 0.75;
+        bulletSizeMultiplierBase = 0.75;
+        playerSpeedMultiplierBase = 0.75;
+        playerHealthMultiplierBase = 0.75;
+        bossSpawnRateIndex = 0;
+        break;
+      case 'normal':
+        powerupDropChance = 0.8;
+        enemyMovementMultiplierBase = 1;
+        bulletDamageMultiplierBase = 1;
+        bulletSpeedMultiplierBase = 1;
+        bulletSizeMultiplierBase = 1;
+        playerSpeedMultiplierBase = 1;
+        playerHealthMultiplierBase = 1;
+        bossSpawnRateIndex = 1;
+        break;
+      case 'hard':
+        powerupDropChance = 1;
+        enemyMovementMultiplierBase = 1.5;
+        bulletDamageMultiplierBase = 1.5;
+        bulletSpeedMultiplierBase = 1.5;
+        bulletSizeMultiplierBase = 1.5;
+        playerSpeedMultiplierBase = 1.5;
+        playerHealthMultiplierBase = 1.5;
+        bossSpawnRateIndex = 2;
+        break;
+    }
+    // Update sliders to reflect presets
+    powerupDropSlider.value = ['easy','normal','hard'].indexOf(level);
+    enemySpeedSlider.value = enemyMovementMultiplierBase;
+    bulletDamageSlider.value = bulletDamageMultiplierBase;
+    bulletSpeedSlider.value = bulletSpeedMultiplierBase;
+    bulletSizeSlider.value = bulletSizeMultiplierBase;
+    playerSpeedSlider.value = playerSpeedMultiplierBase;
+    playerHealthSlider.value = playerHealthMultiplierBase;
+    bossSpawnSlider.value = bossSpawnRateIndex;
+  }
+  setDifficultyPresets('normal');
+
+  // Update custom variables when sliders change
+  function updateCustomSettings() {
+    powerupDropChance = [0.5, 0.8, 1][parseInt(powerupDropSlider.value)] || 0.8;
+    enemyMovementMultiplierBase = parseFloat(enemySpeedSlider.value);
+    bulletDamageMultiplierBase = parseFloat(bulletDamageSlider.value);
+    bulletSpeedMultiplierBase = parseFloat(bulletSpeedSlider.value);
+    bulletSizeMultiplierBase = parseFloat(bulletSizeSlider.value);
+    playerSpeedMultiplierBase = parseFloat(playerSpeedSlider.value);
+    playerHealthMultiplierBase = parseFloat(playerHealthSlider.value);
+    bossSpawnRateIndex = parseInt(bossSpawnSlider.value);
+  }
+  powerupDropSlider.oninput = updateCustomSettings;
+  enemySpeedSlider.oninput = updateCustomSettings;
+  bulletDamageSlider.oninput = updateCustomSettings;
+  bulletSpeedSlider.oninput = updateCustomSettings;
+  bulletSizeSlider.oninput = updateCustomSettings;
+  playerSpeedSlider.oninput = updateCustomSettings;
+  playerHealthSlider.oninput = updateCustomSettings;
+  bossSpawnSlider.oninput = updateCustomSettings;
+
+  updateCustomSettings();
+
+  // --- Game constants ---
+  const BASE_PLAYER_SIZE = 30;
+  const BASE_PLAYER_SPEED = 4;
+  const BASE_BULLET_SPEED = 8;
+  const BASE_BULLET_DAMAGE = 10;
+  const BASE_ZOMBIE_SIZE = 30;
+  const BASE_ZOMBIE_SPEED = 1.5;
+  const MAX_HEALTH = 100;
+  const CRIT_CHANCE = 0.1;
+
+  // --- Game variables ---
+  let player1, player2;
+  let kills, totalKills, nextUpgradeThreshold, enemySpeedMultiplier, upgradeLevel;
+  let activePowerups;
+  let zombies, powerups;
+  let lastSpawn, gameOver, win;
+  let upgradePoints, awaitingUpgrade;
+
+  // --- Utility functions ---
+  function rectCollision(a, b) {
+    return a.x < b.x + b.width &&
+           a.x + a.width > b.x &&
+           a.y < b.y + b.height &&
+           a.y + a.height > b.y;
+  }
+  function circleRectCollision(circle, rect) {
+    let distX = Math.abs(circle.x - rect.x - rect.width/2);
+    let distY = Math.abs(circle.y - rect.y - rect.height/2);
+    if (distX > (rect.width/2 + circle.radius)) return false;
+    if (distY > (rect.height/2 + circle.radius)) return false;
+    if (distX <= (rect.width/2)) return true;
+    if (distY <= (rect.height/2)) return true;
+    let dx = distX - rect.width/2;
+    let dy = distY - rect.height/2;
+    return (dx*dx + dy*dy <= (circle.radius * circle.radius));
+  }
+
+  function drawHealthBar(x, y, width, height, health, maxHealth) {
+    const centerX = x + width / 2;
+    const barMaxWidth = width;
+    const healthPercent = Math.max(0, Math.min(health / maxHealth, 1));
+    const halfMax = barMaxWidth / 2;
+    const leftWidth = halfMax * healthPercent;
+    const rightWidth = halfMax * healthPercent;
+
+    ctx.fillStyle = '#555';
+    ctx.fillRect(centerX - halfMax, y, barMaxWidth, height);
+
+    ctx.fillStyle = '#0f0';
+    ctx.fillRect(centerX - leftWidth, y, leftWidth, height);
+    ctx.fillRect(centerX, y, rightWidth, height);
+  }
+
+  class Player {
+    constructor(x, y, color, controls, side) {
+      this.x = x;
+      this.y = y;
+      this.color = color;
+      this.controls = controls;
+      this.health = MAX_HEALTH * playerHealthMultiplierBase;
+      this.width = BASE_PLAYER_SIZE;
+      this.height = BASE_PLAYER_SIZE;
+      this.bullets = [];
+      this.shootCooldown = 0;
+      this.side = side;
+
+      this.bulletDamage = BASE_BULLET_DAMAGE * bulletDamageMultiplierBase;
+      this.bulletSpeed = BASE_BULLET_SPEED * bulletSpeedMultiplierBase;
+      this.bulletSize = 5 * bulletSizeMultiplierBase;
+      this.speed = BASE_PLAYER_SPEED * playerSpeedMultiplierBase;
+      this.maxHealth = MAX_HEALTH * playerHealthMultiplierBase;
+    }
+
+    move() {
+      const centerX = canvas.width / 2;
+      if (keys[this.controls.up] && this.y > 0) this.y -= this.speed;
+      if (keys[this.controls.down] && this.y + this.height < canvas.height) this.y += this.speed;
+
+      if (onePlayerMode) {
+        if (keys[this.controls.left] && this.x > 0) this.x -= this.speed;
+        if (keys[this.controls.right] && this.x + this.width < canvas.width) this.x += this.speed;
+      } else {
+        if (keys[this.controls.left]) {
+          if (this.side === 'left') {
+            if (this.x > 0) this.x -= this.speed;
+          } else if (this.side === 'right') {
+            if (this.x - this.speed >= centerX) this.x -= this.speed;
+          }
+        }
+        if (keys[this.controls.right]) {
+          if (this.side === 'left') {
+            if (this.x + this.width + this.speed <= centerX) this.x += this.speed;
+          } else if (this.side === 'right') {
+            if (this.x + this.width < canvas.width) this.x += this.speed;
+          }
+        }
+      }
+    }
+
+    shoot() {
+      if (keys[this.controls.shoot] && this.shootCooldown <= 0) {
+        let dir = this.controls.shootDir;
+        if (onePlayerMode) {
+          // Shoot direction depends on movement keys pressed, default right if none
+          let dx = 0, dy = 0;
+          if (keys[this.controls.up]) dy = -1;
+          else if (keys[this.controls.down]) dy = 1;
+          if (keys[this.controls.left]) dx = -1;
+          else if (keys[this.controls.right]) dx = 1;
+          if (dx === 0 && dy === 0) {
+            dx = 1; // default shoot right
+            dy = 0;
+          }
+          const mag = Math.sqrt(dx*dx + dy*dy);
+          dir = {x: dx/mag, y: dy/mag};
+        }
+        this.bullets.push(new Bullet(
+          this.x + this.width/2,
+          this.y + this.height/2,
+          dir,
+          activePowerups.rapidFire ? this.bulletSpeed * 1.5 : this.bulletSpeed,
+          this.bulletDamage,
+          this.bulletSize
+        ));
+        this.shootCooldown = 20;
+      }
+      if (this.shootCooldown > 0) this.shootCooldown--;
+    }
+
+    updateBullets() {
+      this.bullets.forEach((b, i) => {
+        b.move();
+        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+          this.bullets.splice(i, 1);
+        }
+      });
+    }
+
+    draw() {
+      ctx.fillStyle = this.color;
+      ctx.fillRect(this.x, this.y, this.width, this.height);
+      drawHealthBar(this.x, this.y - 12, this.width, 6, this.health, this.maxHealth);
+      this.bullets.forEach(b => b.draw());
+    }
+  }
+
+  class Bullet {
+    constructor(x, y, direction, speed, damage, size = 5) {
+      this.x = x;
+      this.y = y;
+      this.radius = size;
+      this.speed = speed;
+      this.direction = direction;
+      this.damage = damage;
+      this.crit = Math.random() < CRIT_CHANCE;
+    }
+    move() {
+      this.x += this.speed * this.direction.x;
+      this.y += this.speed * this.direction.y;
+    }
+    draw() {
+      ctx.beginPath();
+      ctx.fillStyle = this.crit ? '#ff69b4' : '#ff0';
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+      if (this.crit) {
+        ctx.strokeStyle = '#ff69b4';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+  }
+
+  class Zombie {
+    constructor(x, y, size = BASE_ZOMBIE_SIZE, speed = BASE_ZOMBIE_SPEED, health = 20) {
+      this.x = x;
+      this.y = y;
+      this.width = size;
+      this.height = size;
+      this.color = '#900';
+      this.speed = speed;
+      this.health = health;
+      this.maxHealth = health;
+      this.target = null;
+    }
+
+    move() {
+      if (!this.target) return;
+      let dx = this.target.x + this.target.width/2 - (this.x + this.width/2);
+      let dy = this.target.y + this.target.height/2 - (this.y + this.height/2);
+      let dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist > 0) {
+        this.x += (dx / dist) * this.speed * enemySpeedMultiplier;
+        this.y += (dy / dist) * this.speed * enemySpeedMultiplier;
+      }
+    }
+
+    draw() {
+      ctx.fillStyle = this.color;
+      ctx.fillRect(this.x, this.y, this.width, this.height);
+      drawHealthBar(this.x, this.y - 12, this.width, 6, this.health, this.maxHealth);
+    }
+  }
+
+  class MiniBoss extends Zombie {
+    constructor(x, y) {
+      const size = BASE_ZOMBIE_SIZE;
+      const health = 20 * 2.5 * playerHealthMultiplierBase;
+      super(x, y, size, BASE_ZOMBIE_SPEED, health);
+      this.color = '#b22';
+    }
+  }
+
+  class Boss extends Zombie {
+    constructor(x, y) {
+      const size = BASE_ZOMBIE_SIZE * 3;
+      const baseSpeed = BASE_ZOMBIE_SPEED;
+      const health = 20 * 5 * playerHealthMultiplierBase;
+      const speed = (baseSpeed * enemySpeedMultiplier) * 0.5;
+      super(x, y, size, speed, health);
+      this.color = '#f00';
+    }
+    move() {
+      if (!this.target) return;
+      let dx = this.target.x + this.target.width/2 - (this.x + this.width/2);
+      let dy = this.target.y + this.target.height/2 - (this.y + this.height/2);
+      let dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist > 0) {
+        this.x += (dx / dist) * this.speed;
+        this.y += (dy / dist) * this.speed;
+      }
+    }
+  }
+
+  class Powerup {
+    constructor(x, y, type) {
+      this.x = x;
+      this.y = y;
+      this.radius = 12;
+      this.type = type; // 'nuke', 'rapidFire', 'healthKit', 'megaHealthKit'
+      this.color = type === 'nuke' ? '#fff' :
+                   type === 'rapidFire' ? '#0ff' :
+                   type === 'healthKit' ? '#0f0' :
+                   '#ff0';
+      this.duration = 15000;
+      this.spawnTime = Date.now();
+    }
+    draw() {
+      ctx.beginPath();
+      ctx.fillStyle = this.color;
+      ctx.shadowColor = '#0f0';
+      ctx.shadowBlur = 10;
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      let symbol = this.type === 'nuke' ? 'N' :
+                   this.type === 'rapidFire' ? 'R' :
+                   this.type === 'healthKit' ? '+' :
+                   this.type === 'megaHealthKit' ? 'M' : '?';
+      ctx.fillText(symbol, this.x, this.y);
+    }
+    isExpired() {
+      return (Date.now() - this.spawnTime) > this.duration;
+    }
+  }
+
+  // --- Game logic and spawning ---
+  function spawnZombie() {
+    let side = Math.random() < 0.5 ? 'left' : 'right';
+    let x = side === 'left' ? -BASE_ZOMBIE_SIZE : canvas.width + BASE_ZOMBIE_SIZE;
+    let y = Math.random() * (canvas.height - BASE_ZOMBIE_SIZE);
+
+    let distP1 = Math.abs(x - player1.x);
+    let distP2 = player2 ? Math.abs(x - player2.x) : Infinity;
+
+    // Adjust boss spawn chance by difficulty
+    const bossSpawnThreshold = [50, 35, 20][bossSpawnRateIndex] || 50;
+
+    if (totalKills > 0 && totalKills % bossSpawnThreshold === 0) {
+      let boss = new Boss(x, y);
+      boss.target = distP1 < distP2 ? player1 : player2;
+      zombies.push(boss);
+    } else if (totalKills > 0 && totalKills % 10 === 0) {
+      let miniboss = new MiniBoss(x, y);
+      miniboss.target = distP1 < distP2 ? player1 : player2;
+      zombies.push(miniboss);
+    } else {
+      let z = new Zombie(x, y);
+      z.target = distP1 < distP2 ? player1 : player2;
+      zombies.push(z);
+    }
+  }
+
+  function trySpawnPowerup(x, y, killerZombie) {
+    if (Math.random() < powerupDropChance) {
+      let type = 'nuke';
+      if (killerZombie instanceof MiniBoss) {
+        type = 'healthKit';
+      } else if (killerZombie instanceof Boss) {
+        type = 'megaHealthKit';
+      } else {
+        const types = ['nuke', 'rapidFire'];
+        type = types[Math.floor(Math.random() * types.length)];
+      }
+      powerups.push(new Powerup(x, y, type));
+    }
+  }
+
+  function checkPowerupPickup() {
+    powerups.forEach((powerup, i) => {
+      if (circleRectCollision(powerup, player1) || (player2 && circleRectCollision(powerup, player2))) {
+        activatePowerup(powerup.type);
+        powerups.splice(i,1);
+      } else if (powerup.isExpired()) {
+        powerups.splice(i,1);
+      }
+    });
+  }
+
+  function activatePowerup(type) {
+    if (type === 'nuke') {
+      triggerNuke();
+    } else if (type === 'rapidFire') {
+      activePowerups.rapidFire = true;
+      powerupInfo.textContent = 'Rapid Fire Activated! (Until death)';
+    } else if (type === 'healthKit') {
+      healPlayers(0.25); // Heal 25%
+      powerupInfo.textContent = 'Health Kit! +25% Health to Players';
+    } else if (type === 'megaHealthKit') {
+      healPlayers(1); // Full heal
+      powerupInfo.textContent = 'Mega Health Kit! Full Heal for Players';
+    }
+  }
+
+  function healPlayers(fraction) {
+    const healAmount1 = player1.maxHealth * fraction;
+    const healAmount2 = player2 ? player2.maxHealth * fraction : 0;
+    player1.health = Math.min(player1.maxHealth, player1.health + healAmount1);
+    if (player2) player2.health = Math.min(player2.maxHealth, player2.health + healAmount2);
+  }
+
+  function triggerNuke() {
+    zombies = [];
+    const sequence = [
+      {color: 'white', duration: 150},
+      {color: 'red', duration: 150},
+      {color: 'orange', duration: 150},
+      {color: 'white', duration: 150},
+    ];
+    flashOverlay.style.display = 'block';
+    let idx = 0;
+    function nextFlash() {
+      if (idx >= sequence.length) {
+        flashOverlay.style.display = 'none';
+        return;
+      }
+      flashOverlay.style.backgroundColor = sequence[idx].color;
+      setTimeout(() => {
+        idx++;
+        nextFlash();
+      }, sequence[idx].duration);
+    }
+    nextFlash();
+  }
+
+  function update() {
+    if (gameOver || awaitingUpgrade) return;
+
+    player1.move();
+    if (player2) player2.move();
+
+    player1.shoot();
+    if (player2) player2.shoot();
+
+    player1.updateBullets();
+    if (player2) player2.updateBullets();
+
+    if (Date.now() - lastSpawn > spawnIntervalCurrent) {
+      spawnZombie();
+      lastSpawn = Date.now();
+    }
+
+    zombies.forEach((zombie, i) => {
+      zombie.move();
+
+      player1.bullets.forEach((bullet, bi) => {
+        if (circleRectCollision(bullet, zombie)) {
+          let damage = bullet.crit ? bullet.damage * 2 : bullet.damage;
+          zombie.health -= damage;
+          player1.bullets.splice(bi,1);
+          if (zombie.health <= 0) {
+            trySpawnPowerup(zombie.x + zombie.width/2, zombie.y + zombie.height/2, zombie);
+            zombies.splice(i,1);
+            onZombieKilled();
+          }
+        }
+      });
+      if (player2) {
+        player2.bullets.forEach((bullet, bi) => {
+          if (circleRectCollision(bullet, zombie)) {
+            let damage = bullet.crit ? bullet.damage * 2 : bullet.damage;
+            zombie.health -= damage;
+            player2.bullets.splice(bi,1);
+            if (zombie.health <= 0) {
+              trySpawnPowerup(zombie.x + zombie.width/2, zombie.y + zombie.height/2, zombie);
+              zombies.splice(i,1);
+              onZombieKilled();
+            }
+          }
+        });
+      }
+
+      if (rectCollision(zombie, player1)) {
+        player1.health -= 0.5;
+      }
+      if (player2 && rectCollision(zombie, player2)) {
+        player2.health -= 0.5;
+      }
+    });
+
+    checkPowerupPickup();
+
+    // Disable rapid fire if player dies
+    if (player1.health <= 0 || (player2 && player2.health <= 0)) {
+      if (activePowerups.rapidFire) {
+        activePowerups.rapidFire = false;
+        powerupInfo.textContent = '';
+      }
+    }
+
+    if (player1.health <= 0) player1.health = 0;
+    if (player2 && player2.health <= 0) player2.health = 0;
+
+    if (player1.health <= 0 && (!player2 || player2.health <= 0)) {
+      gameOver = true;
+      win = false;
+      saveHighScore(totalKills);
+      showHighScores();
+      retryButton.style.display = 'block';
+    }
+  }
+
+  function onZombieKilled() {
+    kills++;
+    totalKills++;
+    updateProgressBar();
+
+    // Every 5 kills, increase spawn rate (decrease spawn interval)
+    if (totalKills % 5 === 0) {
+      let reductionFactor = Math.pow(0.8, Math.floor(totalKills / 5));
+      spawnIntervalCurrent = spawnIntervalBase * reductionFactor;
+      if (!blitzMode && spawnIntervalCurrent < 300) {
+        spawnIntervalCurrent = 300;
+      } else if (blitzMode && spawnIntervalCurrent < 1) {
+        spawnIntervalCurrent = 1;
+      }
+    }
+
+    if (kills >= nextUpgradeThreshold) {
+      upgradePoints++;
+      awaitingUpgrade = true;
+      upgradePrompt.style.display = 'block';
+      kills = 0;
+      nextUpgradeThreshold += upgradeIncrement;
+      enemySpeedMultiplier += 1;
+    }
+  }
+
+  function updateProgressBar() {
+    const progressPercent = (kills / nextUpgradeThreshold) * 100;
+    progressBarFill.style.width = progressPercent + '%';
+  }
+
+  const upgradeIncrement = 5;
+
+  function applyUpgrade(choice) {
+    const boost = upgradeLevel;
+    switch(choice) {
+      case '1':
+        player1.bulletDamage += 2 * boost * bulletDamageMultiplierBase;
+        if (player2) player2.bulletDamage += 2 * boost * bulletDamageMultiplierBase;
+        player1.bulletSize += 0.15 * boost * bulletSizeMultiplierBase;
+        if (player2) player2.bulletSize += 0.15 * boost * bulletSizeMultiplierBase;
+        break;
+      case '2':
+        player1.bulletSpeed += 1 * boost * bulletSpeedMultiplierBase;
+        if (player2) player2.bulletSpeed += 1 * boost * bulletSpeedMultiplierBase;
+        break;
+      case '3':
+        player1.maxHealth += 10 * boost * playerHealthMultiplierBase;
+        if (player2) player2.maxHealth += 10 * boost * playerHealthMultiplierBase;
+        player1.health += 10 * boost * playerHealthMultiplierBase;
+        if (player2) player2.health += 10 * boost * playerHealthMultiplierBase;
+        break;
+      case '4':
+        player1.speed += 0.5 * boost * playerSpeedMultiplierBase;
+        if (player2) player2.speed += 0.5 * boost * playerSpeedMultiplierBase;
+        break;
+    }
+    upgradePoints--;
+    upgradeLevel++;
+    awaitingUpgrade = false;
+    upgradePrompt.style.display = 'none';
+    updateUpgradeInfo();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw vertical middle line only in 2p mode and if game started
+    if (!onePlayerMode && gameStarted) {
+      ctx.strokeStyle = '#0f0';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(canvas.width/2, 0);
+      ctx.lineTo(canvas.width/2, canvas.height);
+      ctx.stroke();
+    }
+
+    player1.draw();
+    if (player2) player2.draw();
+
+    zombies.forEach(z => z.draw());
+    powerups.forEach(p => p.draw());
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '18px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(`P1 Health: ${Math.max(0, Math.floor(player1.health))}`, 10, 25);
+    if (player2) ctx.fillText(`P2 Health: ${Math.max(0, Math.floor(player2.health))}`, canvas.width - 160, 25);
+
+    ctx.fillText(`Upgrade Points: ${upgradePoints}`, 10, 50);
+
+    if (gameOver) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#0f0';
+      ctx.font = '60px Arial';
+      ctx.fillText(win ? 'You Survived! 🎉' : 'Game Over 💀', canvas.width / 2, canvas.height / 2);
+      ctx.font = '28px Arial';
+      ctx.fillText('Use Retry button to play again', canvas.width / 2, canvas.height / 2 + 50);
+    }
+  }
+
+  function updateUpgradeInfo() {
+    upgradeInfo.innerHTML = `
+      <b>Upgrades:</b><br>
+      Bullet Damage: ${player1.bulletDamage.toFixed(1)}<br>
+      Bullet Speed: ${player1.bulletSpeed.toFixed(1)}<br>
+      Health: ${player1.maxHealth.toFixed(1)}<br>
+      Speed: ${player1.speed.toFixed(1)}<br>
+      <b>Spawn Interval:</b> ${spawnIntervalCurrent.toFixed(0)} ms<br>
+      <b>Blitz Mode:</b> ${blitzMode ? 'ON (Uncapped spawn rate)' : 'OFF (Min 300 ms)'}<br>
+      <small><i>Critical Hit chance: 10% (pink bullets deal double damage)</i></small>
+    `;
+  }
+
+  function gameLoop() {
+    update();
+    draw();
+    if (!gameOver) {
+      requestAnimationFrame(gameLoop);
+    }
+  }
+
+  // --- High Scores Management ---
+  function saveHighScore(score) {
+    const scores = JSON.parse(localStorage.getItem('pzombieHighScores') || '[]');
+    scores.push(score);
+    scores.sort((a,b) => b - a);
+    if (scores.length > 5) scores.length = 5; // Keep top 5
+    localStorage.setItem('pzombieHighScores', JSON.stringify(scores));
+  }
+  function getHighScores() {
+    return JSON.parse(localStorage.getItem('pzombieHighScores') || '[]');
+  }
+  function showHighScores() {
+    const scores = getHighScores();
+    highScoreList.innerHTML = scores.length
+      ? scores.map((s,i) => `<li>#${i+1} - ${s} Kills</li>`).join('')
+      : '<li>No scores yet.</li>';
+    highScoreModal.style.display = 'block';
+  }
+  closeHighScore.onclick = () => {
+    highScoreModal.style.display = 'none';
+  }
+  highScoreButton.onclick = () => {
+    showHighScores();
+  }
+
+  // Initialize game with colors and start game loop
+  function initGameWithColors(color1, color2) {
+    kills = 0;
+    totalKills = 0;
+    nextUpgradeThreshold = 5;
+    enemySpeedMultiplier = enemyMovementMultiplierBase;
+    upgradeLevel = 1;
+    activePowerups = { rapidFire: false };
+    zombies = [];
+    powerups = [];
+    lastSpawn = 0;
+    gameOver = false;
+    win = false;
+    upgradePoints = 0;
+    awaitingUpgrade = false;
+    spawnIntervalCurrent = spawnIntervalBase; // Reset spawn interval
+
+    player1 = new Player(100, canvas.height/2 - BASE_PLAYER_SIZE/2, color1, {
+      up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', shoot: 'Space', shootDir: {x:1, y:0}
+    }, 'left');
+
+    if (color2) {
+      player2 = new Player(canvas.width - 130, canvas.height/2 - BASE_PLAYER_SIZE/2, color2, {
+        up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', shoot: 'Enter', shootDir: {x:-1, y:0}
+      }, 'right');
+    } else {
+      player2 = null;
+    }
+
+    updateUpgradeInfo();
+    updateProgressBar();
+    powerupInfo.textContent = '';
+  }
+})();
+</script>
+</body>
+</html>
