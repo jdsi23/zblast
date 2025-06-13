@@ -498,6 +498,7 @@
     border-radius: 10px;
     padding: 10px;
   }
+
 </style>
 </head>
 <body>
@@ -701,6 +702,7 @@
   const creditsInfo = document.getElementById('creditsInfo');
 
   const highScoreButton = document.getElementById('highScoreButton');
+  const colorThemeButtons = document.querySelectorAll('.colorOptionBtn');
   const themeButtonsContainer = document.getElementById("themeButtonsContainer");
   const playersColorsPreview = document.getElementById("playersColorsPreview");
   const enemiesColorsPreview = document.getElementById("enemiesColorsPreview");
@@ -792,6 +794,10 @@
   const MAX_HEALTH = 100;
   const CRIT_CHANCE = 0.1;
 
+  // Default enemy colors
+  const ZOMBIE_COLOR = '#900';
+  const MINI_BOSS_COLOR = '#b22';
+  const BOSS_COLOR = '#f00';
   // Theme definitions
   const THEMES = [
     { name: "Classic", players: ["#00f","#0ff","#f00","#ff0"], enemies: ["#900","#b22","#f00"] },
@@ -1041,6 +1047,18 @@
     renderUpgrades();
     updateLeaderboard();
     blitzMode = blitzCheckbox.checked;
+    const storedColor = localStorage.getItem('zbMainColor');
+    if (storedColor) {
+      document.documentElement.style.setProperty('--main-color', storedColor);
+      colorThemeButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.color === storedColor));
+    }
+    colorThemeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.documentElement.style.setProperty('--main-color', btn.dataset.color);
+        localStorage.setItem('zbMainColor', btn.dataset.color);
+        colorThemeButtons.forEach(b => b.classList.toggle('active', b === btn));
+      });
+    });
     THEMES.forEach((t,i) => {
       const b = document.createElement('button');
       b.className = 'colorOptionBtn';
@@ -1300,6 +1318,7 @@
       this.y = y;
       this.width = size;
       this.height = size;
+      this.color = ZOMBIE_COLOR;
       this.color = zombieColor;
       this.speed = speed;
       this.health = health;
@@ -1328,6 +1347,7 @@
       const size = BASE_ZOMBIE_SIZE;
       const health = 20 * 2.5 * playerHealthMultiplierBase;
       super(x, y, size, BASE_ZOMBIE_SPEED, health);
+      this.color = MINI_BOSS_COLOR;
       this.color = miniBossColor;
     }
   }
@@ -1339,6 +1359,7 @@
       const health = 20 * 5 * playerHealthMultiplierBase;
       const speed = (baseSpeed * enemySpeedMultiplier) * 0.5;
       super(x, y, size, speed, health);
+      this.color = BOSS_COLOR;
       this.color = bossColor;
     }
     move() {
@@ -1551,6 +1572,8 @@
               totalKills++;
               credits += BASE_CREDITS_PER_KILL * (1 + (upgradeTiers.doubleCredits || 0) * 2);
               updateCreditsDisplay();
+              saveCredits();
+              renderUpgrades();
             }
           }
         });
