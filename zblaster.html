@@ -458,6 +458,18 @@
     margin-top: 20px;
     display: inline-block;
   }
+  #flashOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #fff;
+    opacity: 0.8;
+    display: none;
+    pointer-events: none;
+    z-index: 150;
+  }
 
   /* Themes section inside Options tab */
   #optionsTab .themesContainer {
@@ -617,8 +629,11 @@
     <div id="themePreview">
       <div><strong>Players:</strong> <span id="playersColorsPreview">(None selected)</span></div>
       <div style="margin-top:8px;"><strong>Enemies:</strong> <span id="enemiesColorsPreview">(None selected)</span></div>
-    </div>
-  </div>
+</div>
+</div>
+<div style="margin-top:15px; text-align:center;">
+  <label><input type="checkbox" id="disableNukeFlash"> Disable Nuke Flash</label>
+</div>
 </div>
 
 <canvas id="gameCanvas"></canvas>
@@ -686,6 +701,10 @@
   const creditsInfo = document.getElementById('creditsInfo');
 
   const highScoreButton = document.getElementById('highScoreButton');
+  const themeButtonsContainer = document.getElementById("themeButtonsContainer");
+  const playersColorsPreview = document.getElementById("playersColorsPreview");
+  const enemiesColorsPreview = document.getElementById("enemiesColorsPreview");
+  const disableNukeFlashCheckbox = document.getElementById("disableNukeFlash");
   const retryButton = document.getElementById('retryButton');
   const highScoreModal = document.getElementById('highScoreModal');
   const highScoreList = document.getElementById('highScoreList');
@@ -773,7 +792,18 @@
   const MAX_HEALTH = 100;
   const CRIT_CHANCE = 0.1;
 
+  // Theme definitions
+  const THEMES = [
+    { name: "Classic", players: ["#00f","#0ff","#f00","#ff0"], enemies: ["#900","#b22","#f00"] },
+    { name: "Night", players: ["#0f0","#ff0","#0ff","#fff"], enemies: ["#0b0","#0d0","#0f0"] }
+  ];
+  let currentTheme = parseInt(localStorage.getItem("zbThemeIndex") || "0", 10);
+  if (isNaN(currentTheme) || currentTheme >= THEMES.length) currentTheme = 0;
+  let zombieColor = THEMES[currentTheme].enemies[0];
+  let miniBossColor = THEMES[currentTheme].enemies[1];
+  let bossColor = THEMES[currentTheme].enemies[2];
   // Game variables
+
   let player1, player2;
   let kills, totalKills, nextUpgradeThreshold, enemySpeedMultiplier, upgradeLevel;
   let activePowerups;
@@ -893,6 +923,27 @@
       .join('');
   }
 
+  function applyTheme(index) {
+    currentTheme = index;
+    localStorage.setItem('zbThemeIndex', currentTheme);
+    const theme = THEMES[currentTheme];
+    zombieColor = theme.enemies[0];
+    miniBossColor = theme.enemies[1];
+    bossColor = theme.enemies[2];
+    colorBoxes.forEach((box, i) => {
+      if (theme.players[i]) {
+        box.style.background = theme.players[i];
+        box.dataset.color = theme.players[i];
+      }
+    });
+    playersColorsPreview.textContent = theme.players.join(', ');
+    enemiesColorsPreview.textContent = theme.enemies.join(', ');
+    themeButtonsContainer.querySelectorAll('button').forEach((b, bi) => {
+      if (bi === index) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+  }
+
   // Tab management with slide animation
   let activeTab = null;
   function openTab(tabName) {
@@ -990,6 +1041,15 @@
     renderUpgrades();
     updateLeaderboard();
     blitzMode = blitzCheckbox.checked;
+    THEMES.forEach((t,i) => {
+      const b = document.createElement('button');
+      b.className = 'colorOptionBtn';
+      b.textContent = t.name;
+      b.addEventListener('click', () => applyTheme(i));
+      themeButtonsContainer.appendChild(b);
+    });
+    applyTheme(currentTheme);
+    disableNukeFlashCheckbox.checked = JSON.parse(localStorage.getItem('disableNukeFlash') || 'false');
     updateUpgradeInfo();
   });
 
@@ -1004,6 +1064,7 @@
     keys[e.code] = false;
     if (gameStarted) e.preventDefault();
   });
+  window.addEventListener('keydown', e => { if (e.code === 'KeyN') triggerNuke(); });
 
   // Update selection UI
   function updateColorSelectionUI() {
@@ -1239,7 +1300,7 @@
       this.y = y;
       this.width = size;
       this.height = size;
-      this.color = '#900';
+      this.color = zombieColor;
       this.speed = speed;
       this.health = health;
       this.maxHealth = health;
@@ -1267,7 +1328,7 @@
       const size = BASE_ZOMBIE_SIZE;
       const health = 20 * 2.5 * playerHealthMultiplierBase;
       super(x, y, size, BASE_ZOMBIE_SPEED, health);
-      this.color = '#b22';
+      this.color = miniBossColor;
     }
   }
 
@@ -1278,7 +1339,7 @@
       const health = 20 * 5 * playerHealthMultiplierBase;
       const speed = (baseSpeed * enemySpeedMultiplier) * 0.5;
       super(x, y, size, speed, health);
-      this.color = '#f00';
+      this.color = bossColor;
     }
     move() {
       if (!this.target) return;
@@ -1353,6 +1414,14 @@
       const z = new Zombie(x, y);
       z.target = distP1 < distP2 ? player1 : player2;
       zombies.push(z);
+    }
+  }
+
+  function triggerNuke() {
+    zombies = [];
+    if (!disableNukeFlashCheckbox.checked) {
+      flashOverlay.style.display = 'block';
+      setTimeout(() => { flashOverlay.style.display = 'none'; }, 300);
     }
   }
 
@@ -1525,6 +1594,9 @@
     highScoreModal.style.display = 'none';
   });
 
+  disableNukeFlashCheckbox.addEventListener("change", () => {
+    localStorage.setItem("disableNukeFlash", disableNukeFlashCheckbox.checked);
+  });
   // Blitz checkbox change event
   blitzCheckbox.addEventListener('change', () => {
     blitzMode = blitzCheckbox.checked;
