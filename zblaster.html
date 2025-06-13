@@ -471,6 +471,34 @@
     z-index: 150;
   }
 
+  /* Themes section inside Options tab */
+  #optionsTab .themesContainer {
+    margin-top: 30px;
+    text-align: center;
+    user-select: none;
+  }
+  #optionsTab #themeButtonsContainer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 15px;
+  }
+  #optionsTab #themeButtonsContainer button.colorOptionBtn {
+    width: 110px;
+    font-size: 13px;
+  }
+  #optionsTab #themePreview {
+    max-width: 300px;
+    margin: 0 auto;
+    text-align: left;
+    font-size: 14px;
+    color: var(--main-color);
+    border: 2px solid var(--main-color);
+    border-radius: 10px;
+    padding: 10px;
+  }
+
 </style>
 </head>
 <body>
@@ -595,6 +623,15 @@
       <button class="colorOptionBtn" data-color="#ff69b4">Retro Pink</button>
     </div>
   </div>
+  <!-- Themes section moved here -->
+  <div class="themesContainer">
+    <p><strong>Themes:</strong></p>
+    <div id="themeButtonsContainer"></div>
+    <div id="themePreview">
+      <div><strong>Players:</strong> <span id="playersColorsPreview">(None selected)</span></div>
+      <div style="margin-top:8px;"><strong>Enemies:</strong> <span id="enemiesColorsPreview">(None selected)</span></div>
+</div>
+</div>
 <div style="margin-top:15px; text-align:center;">
   <label><input type="checkbox" id="disableNukeFlash"> Disable Nuke Flash</label>
 </div>
@@ -666,6 +703,9 @@
 
   const highScoreButton = document.getElementById('highScoreButton');
   const colorThemeButtons = document.querySelectorAll('.colorOptionBtn');
+  const themeButtonsContainer = document.getElementById("themeButtonsContainer");
+  const playersColorsPreview = document.getElementById("playersColorsPreview");
+  const enemiesColorsPreview = document.getElementById("enemiesColorsPreview");
   const disableNukeFlashCheckbox = document.getElementById("disableNukeFlash");
   const retryButton = document.getElementById('retryButton');
   const highScoreModal = document.getElementById('highScoreModal');
@@ -758,6 +798,16 @@
   const ZOMBIE_COLOR = '#900';
   const MINI_BOSS_COLOR = '#b22';
   const BOSS_COLOR = '#f00';
+  // Theme definitions
+  const THEMES = [
+    { name: "Classic", players: ["#00f","#0ff","#f00","#ff0"], enemies: ["#900","#b22","#f00"] },
+    { name: "Night", players: ["#0f0","#ff0","#0ff","#fff"], enemies: ["#0b0","#0d0","#0f0"] }
+  ];
+  let currentTheme = parseInt(localStorage.getItem("zbThemeIndex") || "0", 10);
+  if (isNaN(currentTheme) || currentTheme >= THEMES.length) currentTheme = 0;
+  let zombieColor = THEMES[currentTheme].enemies[0];
+  let miniBossColor = THEMES[currentTheme].enemies[1];
+  let bossColor = THEMES[currentTheme].enemies[2];
   // Game variables
 
   let player1, player2;
@@ -879,6 +929,26 @@
       .join('');
   }
 
+  function applyTheme(index) {
+    currentTheme = index;
+    localStorage.setItem('zbThemeIndex', currentTheme);
+    const theme = THEMES[currentTheme];
+    zombieColor = theme.enemies[0];
+    miniBossColor = theme.enemies[1];
+    bossColor = theme.enemies[2];
+    colorBoxes.forEach((box, i) => {
+      if (theme.players[i]) {
+        box.style.background = theme.players[i];
+        box.dataset.color = theme.players[i];
+      }
+    });
+    playersColorsPreview.textContent = theme.players.join(', ');
+    enemiesColorsPreview.textContent = theme.enemies.join(', ');
+    themeButtonsContainer.querySelectorAll('button').forEach((b, bi) => {
+      if (bi === index) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+  }
 
   // Tab management with slide animation
   let activeTab = null;
@@ -989,6 +1059,14 @@
         colorThemeButtons.forEach(b => b.classList.toggle('active', b === btn));
       });
     });
+    THEMES.forEach((t,i) => {
+      const b = document.createElement('button');
+      b.className = 'colorOptionBtn';
+      b.textContent = t.name;
+      b.addEventListener('click', () => applyTheme(i));
+      themeButtonsContainer.appendChild(b);
+    });
+    applyTheme(currentTheme);
     disableNukeFlashCheckbox.checked = JSON.parse(localStorage.getItem('disableNukeFlash') || 'false');
     updateUpgradeInfo();
   });
@@ -1241,6 +1319,7 @@
       this.width = size;
       this.height = size;
       this.color = ZOMBIE_COLOR;
+      this.color = zombieColor;
       this.speed = speed;
       this.health = health;
       this.maxHealth = health;
@@ -1269,6 +1348,7 @@
       const health = 20 * 2.5 * playerHealthMultiplierBase;
       super(x, y, size, BASE_ZOMBIE_SPEED, health);
       this.color = MINI_BOSS_COLOR;
+      this.color = miniBossColor;
     }
   }
 
@@ -1280,6 +1360,7 @@
       const speed = (baseSpeed * enemySpeedMultiplier) * 0.5;
       super(x, y, size, speed, health);
       this.color = BOSS_COLOR;
+      this.color = bossColor;
     }
     move() {
       if (!this.target) return;
